@@ -440,10 +440,10 @@ const mbNodeName = (line) => {
   return h === -1 ? null : decodeURIComponent(line.slice(h + 1));
 };
 const mbOrigUuids = mbOrigText.match(/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g) || [];
-check("expired member link serves obfuscated subscription (200, names unchanged, all UUIDs xxx)",
+check("expired member link serves obfuscated subscription (200, all names 已到期请联系卖家, all UUIDs xxx, all addresses dead IP)",
   mbExpFetch.status === 200 && mbExpLines.length === mbOrigLines.length &&
-  mbExpLines.every((l, i) => mbNodeName(l) === mbNodeName(mbOrigLines[i])) &&
-  mbExpText.includes("xxx") &&
+  mbExpLines.every((l) => mbNodeName(l) === "已到期请联系卖家") &&
+  mbExpText.includes("xxx") && mbExpText.includes("114.115.116.117") &&
   !/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/.test(mbExpText) &&
   mbOrigUuids.every((u) => !mbExpText.includes(u)),
   `lines=${mbExpLines.length}`);

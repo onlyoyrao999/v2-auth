@@ -65,26 +65,33 @@ export function poisonSubscription(content) {
 }
 
 // ---------- expired formal-member subscription ----------
-// Owner rule (2026-11-09, corrected same day): when a formal
-// member （小火箭正式会员） expires, his /s/ link still serves the
-// subscription — but only as dead nodes, not as working ones.
-// Node names stay exactly as they were; only every UUID / password
-// becomes “xxx”, so no node can actually connect. Addresses, ports
-// and the rest of the payload are left untouched, and the base64
-// envelope is preserved (base64 in, base64 out; plain in, plain out).
+// Owner rule (2026-11-09, final form): when a formal member
+// （小火箭正式会员） expires, his /s/ link still serves the
+// subscription — but fully obfuscated, so updating in Shadowrocket
+// overwrites his nodes with dead ones. Every node name becomes
+// “已到期请联系卖家”, every UUID / password becomes “xxx”, and
+// every server address becomes the dead IP 114.115.116.117 (the
+// same dead IP the guest poison uses). Ports and the base64
+// envelope are preserved (base64 in, base64 out; plain in, plain
+// out), and renewing revives the real content on the next fetch.
+const EXPIRED_NAME = "已到期请联系卖家";
 const EXPIRED_ID = "xxx";
 
-function blankCredentialUriLine(line) {
+function obfuscateUriLine(line) {
   const hash = line.indexOf("#");
   const base = hash === -1 ? line : line.slice(0, hash);
-  const frag = hash === -1 ? "" : line.slice(hash);
   let out = base.replace(UUID_RE, EXPIRED_ID);
   // vless://<uuid>@host / trojan://<password>@host / ss://<user>@host:
-  // the credential is the userinfo before the first "@".
+  // the credential is the userinfo before the first "@", the
+  // address is the authority host after it.
   const at = out.match(/^([a-z0-9+.-]+:\/\/)([^/@?#]+)@/i);
-  if (at) out = out.slice(0, at[1].length) + EXPIRED_ID + out.slice(at[1].length + at[2].length);
+  if (at) {
+    out = out.slice(0, at[1].length) + EXPIRED_ID + out.slice(at[1].length + at[2].length);
+    out = out.replace(/^([a-z0-9+.-]+:\/\/[^/@]*@)([^/:?#]+)/i, `$1${FAKE_IP}`);
+  }
   // ss://<base64(method:password@host:port)> — no "@" outside the
-  // payload, so decode it, blank the password, re-encode it.
+  // payload, so decode it, blank the password and the host,
+  // re-encode it.
   if (!at && /^ss:\/\//i.test(out)) {
     const m = out.match(/^ss:\/\/([^/?#]+)(\?.*)?$/i);
     if (m) {
@@ -93,14 +100,17 @@ function blankCredentialUriLine(line) {
         const innerAt = inner.lastIndexOf("@");
         const innerColon = inner.indexOf(":");
         if (innerAt > innerColon && innerColon !== -1) {
-          out = "ss://" + b64EncodeText(inner.slice(0, innerColon + 1) + EXPIRED_ID + inner.slice(innerAt)) + (m[2] || "");
+          const hostPort = inner.slice(innerAt + 1);
+          const colon = hostPort.indexOf(":");
+          const port = colon === -1 ? "" : hostPort.slice(colon);
+          out = "ss://" + b64EncodeText(inner.slice(0, innerColon + 1) + EXPIRED_ID + "@" + FAKE_IP + port) + (m[2] || "");
         }
       } catch {
         // Not a decodable ss payload: leave the line as-is.
       }
     }
   }
-  return out + frag;
+  return out + "#" + encodeURIComponent(EXPIRED_NAME);
 }
 
 export function expiredSubscription(content) {
@@ -121,15 +131,17 @@ export function expiredSubscription(content) {
     if (vm) {
       try {
         const obj = JSON.parse(b64DecodeText(vm[1]));
+        obj.ps = EXPIRED_NAME;
         obj.id = EXPIRED_ID;
-        let inner = JSON.stringify(obj).replace(UUID_RE, EXPIRED_ID);
+        obj.add = FAKE_IP;
+        let inner = JSON.stringify(obj).replace(UUID_RE, EXPIRED_ID).replace(IPV4_RE, FAKE_IP);
         return "vmess://" + b64EncodeText(inner);
       } catch {
-        return blankCredentialUriLine(line.replace(UUID_RE, EXPIRED_ID));
+        return obfuscateUriLine(line.replace(UUID_RE, EXPIRED_ID));
       }
     }
-    if (line.includes("://")) return blankCredentialUriLine(line);
-    return line.replace(UUID_RE, EXPIRED_ID);
+    if (line.includes("://")) return obfuscateUriLine(line);
+    return line.replace(UUID_RE, EXPIRED_ID).replace(IPV4_RE, FAKE_IP);
   });
   const out = lines.join("\n");
   return wasB64 ? b64EncodeText(out) : out;
