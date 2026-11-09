@@ -71,7 +71,9 @@ export function poisonSubscription(content) {
 // overwrites his nodes with dead ones. Every node name becomes
 // “已到期请联系卖家”, every UUID / password becomes “xxx”, and
 // every server address becomes the dead IP 114.115.116.117 (the
-// same dead IP the guest poison uses). Ports and the base64
+// same dead IP the guest poison uses). SNI and Host values in the
+// URI query and in vmess payloads are blanked to “xxx” too, so no
+// real domain leaks through them either. Ports and the base64
 // envelope are preserved (base64 in, base64 out; plain in, plain
 // out), and renewing revives the real content on the next fetch.
 const EXPIRED_NAME = "已到期请联系卖家";
@@ -89,6 +91,10 @@ function obfuscateUriLine(line) {
     out = out.slice(0, at[1].length) + EXPIRED_ID + out.slice(at[1].length + at[2].length);
     out = out.replace(/^([a-z0-9+.-]+:\/\/[^/@]*@)([^/:?#]+)/i, `$1${FAKE_IP}`);
   }
+  // Query params that name the real server — SNI, ws Host, ws Path
+  // and friends — blank them to xxx too, or the real domain would
+  // still leak through them.
+  out = out.replace(/([?&])(sni|host|path|serverName|server_name|peer)=[^&#]*/gi, `$1$2=${EXPIRED_ID}`);
   // ss://<base64(method:password@host:port)> — no "@" outside the
   // payload, so decode it, blank the password and the host,
   // re-encode it.
@@ -134,7 +140,11 @@ export function expiredSubscription(content) {
         obj.ps = EXPIRED_NAME;
         obj.id = EXPIRED_ID;
         obj.add = FAKE_IP;
-        let inner = JSON.stringify(obj).replace(UUID_RE, EXPIRED_ID).replace(IPV4_RE, FAKE_IP);
+        let inner = JSON.stringify(obj)
+          .replace(/"sni"\s*:\s*"[^"]*"/g, `"sni": "${EXPIRED_ID}"`)
+          .replace(/"host"\s*:\s*"[^"]*"/g, `"host": "${EXPIRED_ID}"`)
+          .replace(/"path"\s*:\s*"[^"]*"/g, `"path": "${EXPIRED_ID}"`)
+          .replace(UUID_RE, EXPIRED_ID).replace(IPV4_RE, FAKE_IP);
         return "vmess://" + b64EncodeText(inner);
       } catch {
         return obfuscateUriLine(line.replace(UUID_RE, EXPIRED_ID));
@@ -145,4 +155,14 @@ export function expiredSubscription(content) {
   });
   const out = lines.join("\n");
   return wasB64 ? b64EncodeText(out) : out;
+}
+
+// Fallback for an expired member when the live subscription cannot
+// be fetched at all: a single dead node, in the same base64
+// envelope, so the link still answers 200 and the client still
+// overwrites its nodes instead of keeping the real ones on a 403.
+export function expiredFallbackSubscription() {
+  return b64EncodeText(
+    `vless://${EXPIRED_ID}@${FAKE_IP}:443#${encodeURIComponent(EXPIRED_NAME)}`,
+  );
 }

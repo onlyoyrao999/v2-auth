@@ -1,6 +1,7 @@
 // End-to-end test for v2-auth (assumes `wrangler pages dev` on :8788
 // with .dev.vars ADMIN_PASSWORD=liantong-test-pw).
 import { parseKeyDescription, readTlv } from "../functions/lib/attest.js";
+import { expiredSubscription, expiredFallbackSubscription } from "../functions/lib/poison.js";
 import vm from "node:vm";
 
 const BASE = "http://127.0.0.1:8788";
@@ -447,6 +448,21 @@ check("expired member link serves obfuscated subscription (200, all names 已到
   !/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/.test(mbExpText) &&
   mbOrigUuids.every((u) => !mbExpText.includes(u)),
   `lines=${mbExpLines.length}`);
+const mbFbText = Buffer.from(expiredFallbackSubscription().replace(/\s+/g, ""), "base64").toString("utf8");
+check("expired fallback is one dead node, always open (name 已到期请联系卖家, xxx, dead IP)",
+  mbFbText === "vless://xxx@114.115.116.117:443#%E5%B7%B2%E5%88%B0%E6%9C%9F%E8%AF%B7%E8%81%94%E7%B3%BB%E5%8D%96%E5%AE%B6",
+  mbFbText);
+const sniSample = Buffer.from([
+  "vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@real.example.com:443?security=tls&sni=sni.real.example.com&host=host.real.example.com&path=%2F%3Fed%3D2048&type=ws#TestNode",
+  "vmess://" + Buffer.from(JSON.stringify({ v: "2", ps: "TestVmess", add: "1.2.3.4", port: "443", id: "11111111-2222-3333-4444-555555555555", host: "host.real.example.com", sni: "sni.real.example.com", path: "/?ed=2048" })).toString("base64"),
+].join("\n")).toString("base64");
+const sniOut = Buffer.from(expiredSubscription(sniSample).replace(/\s+/g, ""), "base64").toString("utf8");
+check("expired obfuscation blanks SNI/host/path too (sni=xxx, host=xxx, path=xxx, no real domain)",
+  sniOut.includes("sni=xxx") && sniOut.includes("host=xxx") && sniOut.includes("path=xxx") &&
+  !sniOut.includes("real.example.com") && !sniOut.includes("sni.real.example.com") && !sniOut.includes("ed=2048") &&
+  JSON.parse(Buffer.from(sniOut.split("\n")[1].slice(8), "base64").toString("utf8")).host === "xxx" &&
+  JSON.parse(Buffer.from(sniOut.split("\n")[1].slice(8), "base64").toString("utf8")).path === "xxx",
+  sniOut);
 await j("/api/admin/member", { id: MID, action: "extend", days: 10001 }, { cookie });
 const mbRevived = await fetch(mbMe.link);
 check("extended member link alive again with real content", mbRevived.status === 200 && (await mbRevived.text()) === expectedSub);

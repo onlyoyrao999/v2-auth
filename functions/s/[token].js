@@ -1,6 +1,6 @@
 import { getGuest, guestProblem, getMember, memberProblem, vaultOpen, logEvent, noteGuestFetch, beijingDay, nowSec } from "../lib/core.js";
 import { serveSubscription, guestChannel } from "../api/subscription.js";
-import { poisonSubscription, expiredSubscription } from "../lib/poison.js";
+import { poisonSubscription, expiredSubscription, expiredFallbackSubscription } from "../lib/poison.js";
 
 // GET /s/<sealed-token>
 // A guest's personal subscription link, pasted into Shadowrocket or
@@ -32,22 +32,17 @@ export async function onRequestGet({ request, env, params }) {
     // and every address the dead IP, so updating in Shadowrocket
     // overwrites his nodes with dead ones. Nothing else is ever
     // served, and renewing revives the real content on the next
-    // fetch. If the live subscription cannot be fetched, fall back
-    // to the plain notice instead of serving anything stale.
+    // fetch. If the live subscription cannot be fetched, serve the
+    // static fallback instead of a 403, so the link always stays
+    // open and always serves only obfuscated nodes.
     const mrec = await getMember(env, payload.m);
     if (!mrec) return deny("not_found", 404);
     const mproblem = memberProblem(mrec);
     if (mproblem === "expired") {
       await logEvent(env, "member_sub_expired", mrec.username || "", "expired");
       const mcontent = await serveSubscription(env, "main");
-      if (mcontent) {
-        return new Response(expiredSubscription(mcontent), {
-          status: 200,
-          headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
-        });
-      }
-      return new Response("已到期，请联系卖家", {
-        status: 403,
+      return new Response(mcontent ? expiredSubscription(mcontent) : expiredFallbackSubscription(), {
+        status: 200,
         headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
       });
     }
