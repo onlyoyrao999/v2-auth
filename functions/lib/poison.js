@@ -65,21 +65,19 @@ export function poisonSubscription(content) {
 }
 
 // ---------- expired formal-member subscription ----------
-// Owner rule (2026-11-09): when a formal member （小火箭正式会员）
-// expires, his /s/ link still serves the subscription — but only
-// as a reminder, not as working nodes. Every node name becomes
-// “已到期，请续费” so the user sees it the first time he opens
-// Shadowrocket and knows to contact the seller to renew, and every
-// UUID / password becomes “xxx” so no node can actually connect.
-// Nothing else changes: addresses, ports and the rest of the
-// payload are left untouched, and the base64 envelope is preserved
-// (base64 in, base64 out; plain in, plain out).
-const EXPIRED_NAME = "已到期，请续费";
+// Owner rule (2026-11-09, corrected same day): when a formal
+// member （小火箭正式会员） expires, his /s/ link still serves the
+// subscription — but only as dead nodes, not as working ones.
+// Node names stay exactly as they were; only every UUID / password
+// becomes “xxx”, so no node can actually connect. Addresses, ports
+// and the rest of the payload are left untouched, and the base64
+// envelope is preserved (base64 in, base64 out; plain in, plain out).
 const EXPIRED_ID = "xxx";
 
-function renameUriLine(line) {
+function blankCredentialUriLine(line) {
   const hash = line.indexOf("#");
   const base = hash === -1 ? line : line.slice(0, hash);
+  const frag = hash === -1 ? "" : line.slice(hash);
   let out = base.replace(UUID_RE, EXPIRED_ID);
   // vless://<uuid>@host / trojan://<password>@host / ss://<user>@host:
   // the credential is the userinfo before the first "@".
@@ -102,7 +100,7 @@ function renameUriLine(line) {
       }
     }
   }
-  return out + "#" + encodeURIComponent(EXPIRED_NAME);
+  return out + frag;
 }
 
 export function expiredSubscription(content) {
@@ -123,15 +121,14 @@ export function expiredSubscription(content) {
     if (vm) {
       try {
         const obj = JSON.parse(b64DecodeText(vm[1]));
-        obj.ps = EXPIRED_NAME;
         obj.id = EXPIRED_ID;
         let inner = JSON.stringify(obj).replace(UUID_RE, EXPIRED_ID);
         return "vmess://" + b64EncodeText(inner);
       } catch {
-        return renameUriLine(line.replace(UUID_RE, EXPIRED_ID));
+        return blankCredentialUriLine(line.replace(UUID_RE, EXPIRED_ID));
       }
     }
-    if (line.includes("://")) return renameUriLine(line);
+    if (line.includes("://")) return blankCredentialUriLine(line);
     return line.replace(UUID_RE, EXPIRED_ID);
   });
   const out = lines.join("\n");

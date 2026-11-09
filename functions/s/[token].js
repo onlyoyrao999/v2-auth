@@ -27,13 +27,12 @@ export async function onRequestGet({ request, env, params }) {
     // Formal member （小火箭正式会员）: his link serves the main
     // channel — the same subscription the authorized client pulls —
     // while the record is usable. Expired: still serve the
-    // subscription, but obfuscated (owner, 2026-11-09) — every node
-    // renamed “已到期，请续费” and every UUID/password “xxx”, so
-    // the user sees the reminder at first glance in Shadowrocket
-    // and no node can connect. Nothing else is ever served, and
-    // renewing revives the real content on the next fetch. If the
-    // live subscription cannot be fetched, fall back to the plain
-    // notice instead of serving anything stale.
+    // subscription, but obfuscated (owner, 2026-11-09) — node names
+    // stay as they were, every UUID/password becomes “xxx”, so no
+    // node can connect. Nothing else is ever served, and renewing
+    // revives the real content on the next fetch. If the live
+    // subscription cannot be fetched, fall back to the plain notice
+    // instead of serving anything stale.
     const mrec = await getMember(env, payload.m);
     if (!mrec) return deny("not_found", 404);
     const mproblem = memberProblem(mrec);
