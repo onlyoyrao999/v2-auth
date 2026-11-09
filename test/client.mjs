@@ -426,7 +426,27 @@ await j("/api/admin/member", { id: MID, action: "enable" }, { cookie });
 check("member link back after enable", (await fetch(mbMe.link)).status === 200);
 await j("/api/admin/member", { id: MID, action: "set_expiry", expires_at: Math.floor(Date.now() / 1000) - 90000 }, { cookie });
 const mbExpFetch = await fetch(mbMe.link);
-check("expired member link answers the plain notice", mbExpFetch.status === 403 && (await mbExpFetch.text()) === "已到期，请联系卖家");
+const mbExpBody = await mbExpFetch.text();
+let mbExpText = mbExpBody;
+try { const d = Buffer.from(mbExpBody.replace(/\s+/g, ""), "base64").toString("utf8"); if (d.includes("://")) mbExpText = d; } catch {}
+let mbOrigText = expectedSub;
+try { const d = Buffer.from(expectedSub.replace(/\s+/g, ""), "base64").toString("utf8"); if (d.includes("://")) mbOrigText = d; } catch {}
+const mbExpLines = mbExpText.split(/\r?\n/).filter(Boolean);
+const mbOrigLines = mbOrigText.split(/\r?\n/).filter(Boolean);
+const mbNodeName = (line) => {
+  const vm = line.match(/^vmess:\/\/(.+)$/);
+  if (vm) { try { return JSON.parse(Buffer.from(vm[1], "base64").toString("utf8")).ps; } catch { return null; } }
+  const h = line.indexOf("#");
+  return h === -1 ? null : decodeURIComponent(line.slice(h + 1));
+};
+const mbOrigUuids = mbOrigText.match(/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/g) || [];
+check("expired member link serves obfuscated subscription (200, all names 已到期，请续费, all UUIDs xxx)",
+  mbExpFetch.status === 200 && mbExpLines.length === mbOrigLines.length &&
+  mbExpLines.every((l) => mbNodeName(l) === "已到期，请续费") &&
+  mbExpText.includes("xxx") &&
+  !/\b[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\b/.test(mbExpText) &&
+  mbOrigUuids.every((u) => !mbExpText.includes(u)),
+  `lines=${mbExpLines.length}`);
 await j("/api/admin/member", { id: MID, action: "extend", days: 10001 }, { cookie });
 const mbRevived = await fetch(mbMe.link);
 check("extended member link alive again with real content", mbRevived.status === 200 && (await mbRevived.text()) === expectedSub);

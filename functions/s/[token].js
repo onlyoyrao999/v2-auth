@@ -1,6 +1,6 @@
 import { getGuest, guestProblem, getMember, memberProblem, vaultOpen, logEvent, noteGuestFetch, beijingDay, nowSec } from "../lib/core.js";
 import { serveSubscription, guestChannel } from "../api/subscription.js";
-import { poisonSubscription } from "../lib/poison.js";
+import { poisonSubscription, expiredSubscription } from "../lib/poison.js";
 
 // GET /s/<sealed-token>
 // A guest's personal subscription link, pasted into Shadowrocket or
@@ -26,13 +26,26 @@ export async function onRequestGet({ request, env, params }) {
   if (payload && payload.m) {
     // Formal member （小火箭正式会员）: his link serves the main
     // channel — the same subscription the authorized client pulls —
-    // while the record is usable. Expired answers the plain notice,
-    // exactly like an expired device; nothing else is ever served.
+    // while the record is usable. Expired: still serve the
+    // subscription, but obfuscated (owner, 2026-11-09) — every node
+    // renamed “已到期，请续费” and every UUID/password “xxx”, so
+    // the user sees the reminder at first glance in Shadowrocket
+    // and no node can connect. Nothing else is ever served, and
+    // renewing revives the real content on the next fetch. If the
+    // live subscription cannot be fetched, fall back to the plain
+    // notice instead of serving anything stale.
     const mrec = await getMember(env, payload.m);
     if (!mrec) return deny("not_found", 404);
     const mproblem = memberProblem(mrec);
     if (mproblem === "expired") {
       await logEvent(env, "member_sub_expired", mrec.username || "", "expired");
+      const mcontent = await serveSubscription(env, "main");
+      if (mcontent) {
+        return new Response(expiredSubscription(mcontent), {
+          status: 200,
+          headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+        });
+      }
       return new Response("已到期，请联系卖家", {
         status: 403,
         headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
