@@ -1,6 +1,6 @@
-import { getGuest, guestProblem, getMember, memberProblem, vaultOpen, logEvent, noteGuestFetch, beijingDay, nowSec } from "../lib/core.js";
+import { getGuest, guestProblem, getMember, memberProblem, vaultOpen, logEvent, noteGuestFetch } from "../lib/core.js";
 import { serveSubscription, guestChannel } from "../api/subscription.js";
-import { poisonSubscription, expiredSubscription, expiredFallbackSubscription } from "../lib/poison.js";
+import { expiredSubscription, expiredFallbackSubscription } from "../lib/poison.js";
 
 // GET /s/<sealed-token>
 // A guest's personal subscription link, pasted into Shadowrocket or
@@ -8,8 +8,11 @@ import { poisonSubscription, expiredSubscription, expiredFallbackSubscription } 
 // opaque AES-GCM sealed guest reference, minted when the admin
 // created the guest; the real subscription URL never leaves the
 // server. Every fetch re-reads the guest record, so the moment the
-// admin disables or deletes the guest — or his time runs out — this
-// link stops serving subscription data; re-enabling revives it.
+// admin disables or deletes the guest, this link stops serving
+// subscription data; re-enabling revives it. Expiry is different:
+// an expired record (guest or formal member) keeps an always-open
+// link that only ever serves the fully obfuscated subscription,
+// and renewing revives the real content on the next fetch.
 export async function onRequestGet({ request, env, params }) {
   const deny = (reason, status = 403) =>
     new Response(JSON.stringify({ ok: false, reason }), {
@@ -62,26 +65,23 @@ export async function onRequestGet({ request, env, params }) {
   const rec = await getGuest(env, payload.g);
   if (!rec) return deny("not_found", 404);
   const problem = guestProblem(rec);
-  if (problem === "expired" && rec.expires_at && beijingDay(nowSec()) === beijingDay(rec.expires_at)) {
-    // Two-stage expiry (owner's design, 2026-11-04): ON the expiry
-    // day an expired guest gets a poisoned subscription instead of
-    // an error — a bare 403 leaves the client's cached nodes
-    // working, but a well-formed update whose every server address
-    // is a dead IP makes the client overwrite its config with junk
-    // on the next refresh. From the next day on, the generic hard
-    // cut below applies and the link serves nothing at all.
-    // Served on the fly from the live record — renew the guest and
-    // the real content is back on the very next fetch. If the real
-    // subscription cannot be fetched, fall back to the hard cut.
+  if (problem === "expired") {
+    // Owner rule (2026-11-09): an expired guest, like an expired
+    // formal member, keeps an always-open link that only ever
+    // serves the fully obfuscated subscription — every node renamed
+    // “已到期请联系卖家”, every UUID/password “xxx”, every address
+    // the dead IP, SNI/ws host/ws path “xxx” — so updating in the
+    // client overwrites his nodes with dead ones. No hard cut any
+    // more, on any day. Renewing revives the real content on the
+    // next fetch. If the live subscription cannot be fetched, serve
+    // the static fallback instead of a 403, so the link always
+    // stays open.
     const content = await serveSubscription(env, guestChannel(env, rec));
-    if (content) {
-      await logEvent(env, "guest_sub_poison", rec.username || "", "expired");
-      return new Response(poisonSubscription(content), {
-        status: 200,
-        headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
-      });
-    }
-    return deny("expired");
+    await logEvent(env, "guest_sub_expired", rec.username || "", "expired");
+    return new Response(content ? expiredSubscription(content) : expiredFallbackSubscription(), {
+      status: 200,
+      headers: { "content-type": "text/plain; charset=utf-8", "cache-control": "no-store" },
+    });
   }
   if (problem) {
     await logEvent(env, "guest_sub_deny", rec.username || "", problem);

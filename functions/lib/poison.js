@@ -9,9 +9,12 @@
 // untouched so the file stays structurally valid and clients
 // accept the update.
 //
-// Shared by the guest link (/s/<token>) and the device pull
-// (/api/subscription): both serve this on the Beijing expiry day
-// of an expired license, and hard-deny from the next day on.
+// The lighter poison primitive: addresses to the dead IP and
+// UUIDs to a fixed fake UUID, names and SNI/host/path untouched.
+// NOTE: as of 2026-11-09 the /s/ links no longer use this —
+// expired guests and formal members both get the fully obfuscated
+// expiredSubscription() instead, with no hard cut on any day.
+// This function is kept for the device-pull expiry-day poison.
 const FAKE_IP = "114.115.116.117";
 const FAKE_UUID = "00000000-0000-4000-8000-000000000000";
 const IPV4_RE = /\b(?:\d{1,3}\.){3}\d{1,3}\b/g;
