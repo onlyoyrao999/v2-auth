@@ -18,6 +18,7 @@ export const BLOCKED_KEYWORDS = [
   "套餐到期",
   "白嫖",
   "客户端",
+  "更新节点",
 ];
 
 function b64DecodeText(s) {
