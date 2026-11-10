@@ -2,6 +2,7 @@
 // with .dev.vars ADMIN_PASSWORD=liantong-test-pw).
 import { parseKeyDescription, readTlv } from "../functions/lib/attest.js";
 import { expiredSubscription, expiredFallbackSubscription } from "../functions/lib/poison.js";
+import { filterBlockedKeywords } from "../functions/lib/filter.js";
 import vm from "node:vm";
 
 const BASE = "http://127.0.0.1:8788";
@@ -478,6 +479,34 @@ check("expired obfuscation blanks SNI/host/path too (sni=xxx, host=xxx, path=xxx
   JSON.parse(Buffer.from(sniOut.split("\n")[1].slice(8), "base64").toString("utf8")).host === "xxx" &&
   JSON.parse(Buffer.from(sniOut.split("\n")[1].slice(8), "base64").toString("utf8")).path === "xxx",
   sniOut);
+// Keyword filter: info nodes and blocked labels are dropped on serve.
+const kwLines = [
+  `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("剩余流量：805.55 GB")}`,
+  `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("距离下次重置剩余：8 天")}`,
+  `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("套餐到期：2029-07-18")}`,
+  `hysteria2://pass@216.227.169.1:50075?insecure=1#${encodeURIComponent("白嫖节点")}`,
+  `trojan://trojanpass123@5.6.7.8:443#${encodeURIComponent("客户端专用")}`,
+  "vmess://" + Buffer.from(JSON.stringify({ v: "2", ps: "剩余流量", add: "1.2.3.4", port: "443", id: "11111111-2222-3333-4444-555555555555" })).toString("base64"),
+  "vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#%E7%BE%8E%E5%9B%BD%E8%8A%82%E7%82%B901",
+  "trojan://trojanpass123@5.6.7.8:443#%E6%97%A5%E6%9C%AC%E8%8A%82%E7%82%B903",
+];
+const kwB64 = Buffer.from(kwLines.join("\n")).toString("base64");
+const kwOut = Buffer.from(filterBlockedKeywords(kwB64).replace(/\s+/g, ""), "base64").toString("utf8");
+const kwOutLines = kwOut.split("\n").filter(Boolean);
+check("keyword filter drops info/blocked nodes, keeps real nodes (b64 in, b64 out)",
+  kwOutLines.length === 2 && kwOut.includes("%E7%BE%8E%E5%9B%BD%E8%8A%82%E7%82%B901") && kwOut.includes("%E6%97%A5%E6%9C%AC%E8%8A%82%E7%82%B903") &&
+  !kwOut.includes("剩余流量") && !kwOut.includes("重置") && !kwOut.includes("套餐到期") &&
+  !kwOut.includes("白嫖") && !kwOut.includes("客户端") && !kwOut.includes("805.55") && !kwOut.includes("2029-07-18"),
+  kwOut);
+const kwPlainOut = filterBlockedKeywords(kwLines.join("\n"));
+check("keyword filter works on plain text too",
+  kwPlainOut.split("\n").filter(Boolean).length === 2 && !kwPlainOut.includes("剩余流量") && kwPlainOut.includes("%E7%BE%8E%E5%9B%BD%E8%8A%82%E7%82%B901"),
+  kwPlainOut);
+check("keyword filter leaves an all-blocked subscription untouched (never serves empty)",
+  filterBlockedKeywords(kwLines.slice(0, 6).join("\n")) === kwLines.slice(0, 6).join("\n"));
+const kwCleanB64 = Buffer.from(kwLines.slice(6).join("\n")).toString("base64");
+check("keyword filter leaves a clean subscription byte-identical",
+  filterBlockedKeywords(kwCleanB64) === kwCleanB64);
 await j("/api/admin/member", { id: MID, action: "extend", days: 10001 }, { cookie });
 const mbRevived = await fetch(mbMe.link);
 check("extended member link alive again with real content", mbRevived.status === 200 && (await mbRevived.text()) === expectedSub);

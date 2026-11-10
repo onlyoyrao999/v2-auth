@@ -1,4 +1,5 @@
 import { readJson, nowSec, gate, putDev, logEvent } from "../lib/core.js";
+import { filterBlockedKeywords } from "../lib/filter.js";
 
 // Channel config: each license carries channel "main" | "dist".
 // main -> env.SUB_URL (KV sub:*), dist -> env.SUB_URL_DIST (KV subd:*).
@@ -44,9 +45,11 @@ export async function serveSubscription(env, channel) {
   // so a stored copy is a list of dead addresses — serving it
   // "as a fallback" hands the customer junk that looks like a
   // working config. Every serve fetches the subscription address
-  // fresh and returns exactly that; when the live fetch fails
-  // the serve fails with it (callers answer sub_unavailable /
-  // hard deny) and the client retries later. Nothing is stored.
+  // fresh and returns exactly that, minus any line whose display
+  // name carries a blocked keyword (see lib/filter.js); when the
+  // live fetch fails the serve fails with it (callers answer
+  // sub_unavailable / hard deny) and the client retries later.
+  // Nothing is stored.
   if (!url) return null;
   try {
     const up = await fetch(url, {
@@ -59,7 +62,8 @@ export async function serveSubscription(env, channel) {
     });
     if (!up.ok) return null;
     const text = await up.text();
-    return text && text.length > 50 ? text : null;
+    if (!text || text.length <= 50) return null;
+    return filterBlockedKeywords(text);
   } catch {
     return null;
   }
