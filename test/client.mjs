@@ -487,6 +487,9 @@ const kwLines = [
   `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@try.cloudflare.182682.example.com:443?encryption=none&security=tls&type=ws#${encodeURIComponent("–若无法使用请更新节点–")}`,
   `hysteria2://pass@216.227.169.1:50075?insecure=1#${encodeURIComponent("白嫖节点")}`,
   `trojan://trojanpass123@5.6.7.8:443#${encodeURIComponent("客户端专用")}`,
+  `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("官方入口")}`,
+  `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("EDT导航优选域名")}`,
+  `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("分享免费")}`,
   "vmess://" + Buffer.from(JSON.stringify({ v: "2", ps: "剩余流量", add: "1.2.3.4", port: "443", id: "11111111-2222-3333-4444-555555555555" })).toString("base64"),
   "vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#%E7%BE%8E%E5%9B%BD%E8%8A%82%E7%82%B901",
   "trojan://trojanpass123@5.6.7.8:443#%E6%97%A5%E6%9C%AC%E8%8A%82%E7%82%B903",
@@ -497,15 +500,16 @@ const kwOutLines = kwOut.split("\n").filter(Boolean);
 check("keyword filter drops info/blocked nodes, keeps real nodes (b64 in, b64 out)",
   kwOutLines.length === 2 && kwOut.includes("%E7%BE%8E%E5%9B%BD%E8%8A%82%E7%82%B901") && kwOut.includes("%E6%97%A5%E6%9C%AC%E8%8A%82%E7%82%B903") &&
   !kwOut.includes("剩余流量") && !kwOut.includes("重置") && !kwOut.includes("套餐到期") &&
-  !kwOut.includes("白嫖") && !kwOut.includes("客户端") && !kwOut.includes("更新节点") && !kwOut.includes("805.55") && !kwOut.includes("2029-07-18"),
+  !kwOut.includes("白嫖") && !kwOut.includes("客户端") && !kwOut.includes("更新节点") && !kwOut.includes("805.55") && !kwOut.includes("2029-07-18") &&
+  !kwOut.includes("官方入口") && !kwOut.includes("EDT导航优选域名") && !kwOut.includes("分享免费"),
   kwOut);
 const kwPlainOut = filterBlockedKeywords(kwLines.join("\n"));
 check("keyword filter works on plain text too",
   kwPlainOut.split("\n").filter(Boolean).length === 2 && !kwPlainOut.includes("剩余流量") && kwPlainOut.includes("%E7%BE%8E%E5%9B%BD%E8%8A%82%E7%82%B901"),
   kwPlainOut);
 check("keyword filter leaves an all-blocked subscription untouched (never serves empty)",
-  filterBlockedKeywords(kwLines.slice(0, 7).join("\n")) === kwLines.slice(0, 7).join("\n"));
-const kwCleanB64 = Buffer.from(kwLines.slice(7).join("\n")).toString("base64");
+  filterBlockedKeywords(kwLines.slice(0, 10).join("\n")) === kwLines.slice(0, 10).join("\n"));
+const kwCleanB64 = Buffer.from(kwLines.slice(10).join("\n")).toString("base64");
 check("keyword filter leaves a clean subscription byte-identical",
   filterBlockedKeywords(kwCleanB64) === kwCleanB64);
 await j("/api/admin/member", { id: MID, action: "extend", days: 10001 }, { cookie });

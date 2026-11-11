@@ -19,6 +19,9 @@ export const BLOCKED_KEYWORDS = [
   "白嫖",
   "客户端",
   "更新节点",
+  "官方入口",
+  "EDT导航优选域名",
+  "分享免费",
 ];
 
 function b64DecodeText(s) {
