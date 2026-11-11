@@ -492,6 +492,7 @@ const kwLines = [
   `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("分享免费")}`,
   `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("BestCF优选")}`,
   `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("bestcf节点")}`,
+  `vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#${encodeURIComponent("onezun节点")}`,
   "vmess://" + Buffer.from(JSON.stringify({ v: "2", ps: "剩余流量", add: "1.2.3.4", port: "443", id: "11111111-2222-3333-4444-555555555555" })).toString("base64"),
   "vless://aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee@1.2.3.4:443?encryption=none#%E7%BE%8E%E5%9B%BD%E8%8A%82%E7%82%B901",
   "trojan://trojanpass123@5.6.7.8:443#%E6%97%A5%E6%9C%AC%E8%8A%82%E7%82%B903",
@@ -504,15 +505,15 @@ check("keyword filter drops info/blocked nodes, keeps real nodes (b64 in, b64 ou
   !kwOut.includes("剩余流量") && !kwOut.includes("重置") && !kwOut.includes("套餐到期") &&
   !kwOut.includes("白嫖") && !kwOut.includes("客户端") && !kwOut.includes("更新节点") && !kwOut.includes("805.55") && !kwOut.includes("2029-07-18") &&
   !kwOut.includes("官方入口") && !kwOut.includes("EDT导航优选域名") && !kwOut.includes("分享免费") &&
-  !kwOut.toLowerCase().includes("bestcf"),
+  !kwOut.toLowerCase().includes("bestcf") && !kwOut.toLowerCase().includes("onezun"),
   kwOut);
 const kwPlainOut = filterBlockedKeywords(kwLines.join("\n"));
 check("keyword filter works on plain text too",
   kwPlainOut.split("\n").filter(Boolean).length === 2 && !kwPlainOut.includes("剩余流量") && kwPlainOut.includes("%E7%BE%8E%E5%9B%BD%E8%8A%82%E7%82%B901"),
   kwPlainOut);
 check("keyword filter leaves an all-blocked subscription untouched (never serves empty)",
-  filterBlockedKeywords(kwLines.slice(0, 12).join("\n")) === kwLines.slice(0, 12).join("\n"));
-const kwCleanB64 = Buffer.from(kwLines.slice(12).join("\n")).toString("base64");
+  filterBlockedKeywords(kwLines.slice(0, 13).join("\n")) === kwLines.slice(0, 13).join("\n"));
+const kwCleanB64 = Buffer.from(kwLines.slice(13).join("\n")).toString("base64");
 check("keyword filter leaves a clean subscription byte-identical",
   filterBlockedKeywords(kwCleanB64) === kwCleanB64);
 await j("/api/admin/member", { id: MID, action: "extend", days: 10001 }, { cookie });

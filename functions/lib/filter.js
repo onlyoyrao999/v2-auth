@@ -23,6 +23,7 @@ export const BLOCKED_KEYWORDS = [
   "EDT导航优选域名",
   "分享免费",
   "BestCF",
+  "onezun",
 ];
 
 function b64DecodeText(s) {
