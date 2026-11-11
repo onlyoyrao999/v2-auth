@@ -22,6 +22,7 @@ export const BLOCKED_KEYWORDS = [
   "官方入口",
   "EDT导航优选域名",
   "分享免费",
+  "BestCF",
 ];
 
 function b64DecodeText(s) {
@@ -63,10 +64,13 @@ export function lineDisplayName(line) {
 }
 
 function isBlocked(line) {
-  const name = lineDisplayName(line);
-  if (BLOCKED_KEYWORDS.some((k) => name.includes(k))) return true;
+  // Case-insensitive for Latin keywords (BestCF / bestcf / BESTCF),
+  // which changes nothing for the Chinese keywords.
+  const name = lineDisplayName(line).toLowerCase();
+  if (BLOCKED_KEYWORDS.some((k) => name.includes(k.toLowerCase()))) return true;
   // A keyword outside the name (e.g. in a query param) still counts.
-  if (BLOCKED_KEYWORDS.some((k) => line.includes(k))) return true;
+  const raw = line.toLowerCase();
+  if (BLOCKED_KEYWORDS.some((k) => raw.includes(k.toLowerCase()))) return true;
   return false;
 }
 
