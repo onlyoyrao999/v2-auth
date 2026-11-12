@@ -652,7 +652,11 @@ async function loadGuests() {
     <td class="acts">${g.status === "disabled"
       ? `<button class="small ghost" onclick="guestAct('${g.id}','enable')">恢复</button>
          <button class="small danger" onclick="guestAct('${g.id}','delete')">删除</button>`
-      : `<button class="small danger" onclick="guestAct('${g.id}','disable')">停用</button>`}
+      : (g.expired
+        // Expired rows show the restore button too (owner, 2026-11-12),
+        // same as the device table; delete stays disable-first.
+        ? `<button class="small ghost" onclick="guestAct('${g.id}','enable')">恢复</button>`
+        : `<button class="small danger" onclick="guestAct('${g.id}','disable')">停用</button>`)}
       <button class="small ghost" onclick="editGuestExpiry('${g.id}', ${g.expires_at || 0})">修改时间</button>
       <button class="small ghost" onclick="guestLimit('${g.id}')">拉取上限</button>
       <button class="small ghost" onclick="guestAct('${g.id}','rename')">改名</button>
@@ -767,7 +771,11 @@ async function loadMembers() {
     <td class="acts">${g.status === "disabled"
       ? `<button class="small ghost" onclick="memberAct('${g.id}','enable')">恢复</button>
          <button class="small danger" onclick="memberAct('${g.id}','delete')">删除</button>`
-      : `<button class="small danger" onclick="memberAct('${g.id}','disable')">停用</button>`}
+      : (g.expired
+        // Expired rows show the restore button too (owner, 2026-11-12),
+        // same as the device table; delete stays disable-first.
+        ? `<button class="small ghost" onclick="memberAct('${g.id}','enable')">恢复</button>`
+        : `<button class="small danger" onclick="memberAct('${g.id}','disable')">停用</button>`)}
       <button class="small ghost" onclick="editMemberExpiry('${g.id}', ${g.expires_at || 0})">修改时间</button>
       <button class="small ghost" onclick="memberAct('${g.id}','rename')">改名</button>
       <button class="small ghost" onclick="memberAct('${g.id}','password')">改密码</button></td></tr>`;
