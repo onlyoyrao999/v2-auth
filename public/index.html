@@ -516,7 +516,15 @@ async function loadDevices() {
   $("tbody").innerHTML = data.devices.map((d) => {
     const lic = d.lic || {};
     devNoteMap[d.machine] = lic.note || "";
-    const st = lic.status || "—";
+    // Expiry reads as revoked in this table (owner, 2026-11-12): once
+    // the expiry moment passes, the row must show the stopped state —
+    // status tag "revoked" and the 恢复 button — on its own, without
+    // anyone hand-clicking 停用 first. Stored status is untouched:
+    // renewing the time (修改时间/延期) brings the row back to active
+    // on the next load, and the expiry reminder box above still reads
+    // the raw status, so overdue rows keep counting there.
+    const expired = lic.status === "active" && lic.expires_at && lic.expires_at < Math.floor(Date.now() / 1000);
+    const st = expired ? "revoked" : (lic.status || "—");
     const boot = d.integrity && d.integrity.boot && d.integrity.boot.deviceLocked === false
       ? '<div class="muted" style="color:#b03a2e">设备已解锁/root 标记</div>' : "";
     return `<tr>

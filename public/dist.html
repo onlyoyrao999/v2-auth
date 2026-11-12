@@ -274,7 +274,7 @@ async function loadDevices() {
     <td data-label="激活">${fmt(d.lic.activated_at)}</td>
     <td data-label="到期">${d.lic.expires_at ? fmt(d.lic.expires_at) : "—"}</td>
     <td data-label="最近打开">${fmt(d.last_seen)}</td>
-    <td data-label="状态">${d.lic.status}</td></tr>`).join("");
+    <td data-label="状态">${d.lic.status === "active" && d.lic.expires_at && d.lic.expires_at < Math.floor(Date.now() / 1000) ? "revoked" : d.lic.status}</td></tr>`).join("");
   applyFilter("qMyDevices", "tbody");
 }
 $("refreshBtn").onclick = loadDevices;
